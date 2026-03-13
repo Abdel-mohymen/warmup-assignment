@@ -1,5 +1,7 @@
 const fs = require("fs");
+function DS() {
 
+}
 // ============================================================
 // Function 1: getShiftDuration(startTime, endTime)
 // startTime: (typeof string) formatted as hh:mm:ss am or hh:mm:ss pm
