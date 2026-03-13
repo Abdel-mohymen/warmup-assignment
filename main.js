@@ -3,7 +3,7 @@ function timeToSeconds(timeStr) {
     let [time, modifier] = timeStr.split(' ');
     let [hours, minutes, seconds] = time.split(':').map(Number);
 
-    if (modifier) { // Handles "am/pm" format
+    if (modifier) { 
         if (hours === 12 && modifier.toLowerCase() === 'am') hours = 0;
         if (hours !== 12 && modifier.toLowerCase() === 'pm') hours += 12;
     }
@@ -181,14 +181,18 @@ function countBonusPerMonth(textFile, driverID, month) {
     const data = fs.readFileSync(textFile, 'utf8').trim().split('\n').slice(1);
     let count = 0;
     let found = false;
+
     const searchMonth = month.toString().padStart(2, '0');
 
     for (let line of data) {
+        if (!line.trim()) continue;
         const parts = line.split(',');
         if (parts[0] === driverID) {
             found = true;
-            const recordMonth = parts[2].split('-')[1];
-            if (recordMonth === searchMonth && parts[9] === 'true') {
+            const dateParts = parts[2].split('-'); 
+            const recordMonth = dateParts[1];
+
+            if (recordMonth === searchMonth && parts[9].trim() === 'true') {
                 count++;
             }
         }
@@ -233,32 +237,37 @@ function getRequiredHoursPerMonth(textFile, rateFile, bonusCount, driverID, mont
     for (let line of rateData) {
         const parts = line.split(',');
         if (parts[0] === driverID) {
-            dayOff = parts[1];
+            dayOff = parts[1].trim();
             break;
         }
     }
 
-    const year = 2025;
-    const daysInMonth = new Date(year, month, 0).getDate();
+    const shiftData = fs.readFileSync(textFile, 'utf8').trim().split('\n').slice(1);
     let totalRequiredSeconds = 0;
+    const searchMonth = month.toString().padStart(2, '0');
 
-    for (let d = 1; d <= daysInMonth; d++) {
-        let dateStr = `${year}-${month.toString().padStart(2, '0')}-${d.toString().padStart(2, '0')}`;
-        let dateObj = new Date(dateStr);
-        let dayName = dateObj.toLocaleDateString('en-US', { weekday: 'long' });
+    for (let line of shiftData) {
+        const parts = line.split(',');
+        const recordDriverID = parts[0];
+        const dateStr = parts[2];
+        const recordMonth = dateStr.split('-')[1];
 
-        if (dayName !== dayOff) {
-            let quotaSec = (8 * 3600) + (24 * 60); 
-            let eidStart = new Date("2025-04-10");
-            let eidEnd = new Date("2025-04-30");
+        if (recordDriverID === driverID && recordMonth === searchMonth) {
+            let dateObj = new Date(dateStr);
+            let dayName = dateObj.toLocaleDateString('en-US', { weekday: 'long' });
 
-            if (dateObj >= eidStart && dateObj <= eidEnd) {
-                quotaSec = 6 * 3600;
+            if (dayName !== dayOff) {
+                let quotaSec = (8 * 3600) + (24 * 60); // 8h 24m
+                let eidStart = new Date("2025-04-10");
+                let eidEnd = new Date("2025-04-30");
+
+                if (dateObj >= eidStart && dateObj <= eidEnd) {
+                    quotaSec = 6 * 3600;
+                }
+                totalRequiredSeconds += quotaSec;
             }
-            totalRequiredSeconds += quotaSec;
         }
     }
-
     const bonusDeduction = Math.min(bonusCount, 4) * 3600;
     totalRequiredSeconds -= bonusDeduction;
 
@@ -292,13 +301,13 @@ function getNetPay(driverID, actualHours, requiredHours, rateFile) {
     if (actualSec >= requiredSec) return salary;
 
     const allowances = { 1: 0.10, 2: 0.05, 3: 0.02, 4: 0.00 };
-    const allowedMissingSec = requiredSec * (allowances[tier] || 0);
+    const allowancePercent = allowances[tier] || 0;
+    const allowedMissingSec = requiredSec * allowancePercent;
+    const actualMissingSec = requiredSec - actualSec;
 
-    if (requiredSec - actualSec <= allowedMissingSec) return salary;
-
-    const missingSec = requiredSec - actualSec;
+    if (actualMissingSec <= allowedMissingSec) return salary;
     const hourlyRate = salary / (requiredSec / 3600);
-    const deduction = (missingSec / 3600) * hourlyRate;
+    const deduction = (actualMissingSec / 3600) * hourlyRate;
 
     return Math.floor(salary - deduction);
 }
