@@ -1,6 +1,6 @@
 const fs = require("fs");
 function DS() {
-    int x,y
+    int x,y 
 }
 // ============================================================
 // Function 1: getShiftDuration(startTime, endTime)
